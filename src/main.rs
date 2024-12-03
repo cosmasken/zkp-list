@@ -1,143 +1,125 @@
-use rand::Rng; // Random number generator
-use sha2::{Sha256, Digest}; // For SHA-256 hashing
-use std::fmt::Write; // For converting hash bytes to hex
+extern crate sha2;
+extern crate rand;
 
-// Simulated user structure
-struct User {
-    username: String, // The username of the user
-    password: String, // The user's password
-}
+use sha2::{Sha256, Digest};
+use rand::Rng;
 
-// Simulated server structure
-struct Server {
-    salt: String, // A salt value for additional randomness (unused in current logic)
-}
-
-impl Server {
-    // Generate a random challenge for the user
-    fn generate_challenge(&self) -> String {
-        // Generate a random 16-character alphanumeric string
-        rand::thread_rng()
-            .sample_iter(rand::distributions::Alphanumeric)
-            .take(16)
-            .map(char::from)
-            .collect()
-    }
-
-    // Authenticate the user by verifying their response to the challenge
-    fn authenticate(&self, user: &User, response: &str, challenge: &str) -> bool {
-        // Compute the expected response using the user's password and the challenge
-        let expected_response = hash(&user.password, challenge);
-
-        // Compare the expected response with the provided response
-        response == expected_response
-    }
-}
-
-// A simple hashing function using SHA-256
-fn hash(input: &str, salt: &str) -> String {
+// Commitment function: hashes the value with a random blinding factor.
+fn commit(value: u64, r: u64) -> Vec<u8> {
+    let input = format!("{}{}", value, r);
     let mut hasher = Sha256::new();
-    hasher.update(input); // Add the input (password) to the hash
-    hasher.update(salt);  // Add the salt or challenge to the hash
-    let result = hasher.finalize();
-
-    // Convert the hash bytes into a hexadecimal string
-    let mut hex_output = String::new();
-    for byte in result {
-        write!(&mut hex_output, "{:02x}", byte).unwrap();
-    }
-    hex_output
+    hasher.update(input.as_bytes());
+    hasher.finalize().to_vec()
 }
 
-fn main() {
-    // Create a simulated user
-    let user = User {
-        username: "Lauren".to_string(),
-        password: "placeholder_password".to_string(), // Never use real passwords in examples
-    };
+// Prover function: Generates a commitment for `a`, `b` and sends a challenge response.
+fn prover(a: u64, b: u64) -> (Vec<u8>, Vec<u8>, u64) {
+    // Random blinding factor
+    let r = rand::thread_rng().gen::<u64>();
 
-    // Create a simulated server
-    let server = Server {
-        salt: rand::thread_rng()
-            .sample_iter(rand::distributions::Alphanumeric)
-            .take(16)
-            .map(char::from)
-            .collect(),
-    };
+    // Commitments for a and b
+    let commit_a = commit(a, r);
+    let commit_b = commit(b, r);
 
-    // Generate a challenge from the server
-    let challenge = server.generate_challenge();
-
-    // User computes a response to the challenge
-    let response = hash(&user.password, &challenge);
-
-    // Server verifies the response
-    if server.authenticate(&user, &response, &challenge) {
-        println!("User {} authenticated successfully.", user.username);
-    } else {
-        println!("User {} authentication failed.", user.username);
-    }
+    // For simplicity, we reveal `a` along with the blinding factor
+    (commit_a, commit_b, r)
 }
 
-// Unit tests for the authentication logic
+// Verifier function: Checks if the sum `a + b = s` is correct and commitments are valid.
+fn verifier(commit_a: Vec<u8>, commit_b: Vec<u8>, a: u64, b: u64, r: u64, s: u64) -> bool {
+    // Recommit to a and b using the same blinding factor
+    let commit_a_check = commit(a, r);
+    let commit_b_check = commit(b, r);
+
+    // Verify that the commitments are correct and the sum matches
+    commit_a == commit_a_check && commit_b == commit_b_check && a + b == s
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_hash_function() {
-        let input = "Password123";
-        let salt = "random_salt";
-        let expected_output = hash(input, salt);
-        assert_eq!(expected_output, hash(input, salt)); // Hash should be deterministic
+    fn test_commitment() {
+        let value = 42;
+        let r = 12345;
+
+        // Create the commitment for value with blinding factor r
+        let commit1 = commit(value, r);
+        let commit2 = commit(value, r);
+
+        // Ensure that the commitment is consistent
+        assert_eq!(commit1, commit2, "Commitments for the same value and blinding factor should be the same");
     }
 
     #[test]
-    fn test_authenticate_success() {
-        let user = User {
-            username: "TestUser".to_string(),
-            password: "SecurePass".to_string(),
-        };
-        let server = Server {
-            salt: "random_salt".to_string(),
-        };
+    fn test_prover_and_verifier() {
+        let a: u64 = 10;
+        let b: u64 = 20;
+        let sum = a + b;
 
-        let challenge = server.generate_challenge();
-        let response = hash(&user.password, &challenge);
+        // Prover generates the commitment and response
+        let (commit_a, commit_b, r) = prover(a, b);
 
-        assert!(server.authenticate(&user, &response, &challenge));
+        // Verifier checks the commitments and the sum
+        let is_valid = verifier(commit_a, commit_b, a, b, r, sum);
+
+        // Ensure the verification passes
+        assert!(is_valid, "The ZKP verification failed: the commitments or sum are incorrect");
     }
 
     #[test]
-    fn test_authenticate_failure_wrong_password() {
-        let user = User {
-            username: "TestUser".to_string(),
-            password: "SecurePass".to_string(),
-        };
-        let server = Server {
-            salt: "random_salt".to_string(),
-        };
+    fn test_invalid_sum() {
+        let a: u64 = 10;
+        let b: u64 = 20;
+        let sum = a + b;
 
-        let challenge = server.generate_challenge();
-        let response = hash("WrongPass", &challenge); // Simulate incorrect password
+        // Prover generates the commitment and response
+        let (commit_a, commit_b, r) = prover(a, b);
 
-        assert!(!server.authenticate(&user, &response, &challenge));
+        // Verifier checks the commitments and an invalid sum
+        let invalid_sum = sum + 1;
+        let is_valid = verifier(commit_a, commit_b, a, b, r, invalid_sum);
+
+        // Ensure the verification fails with an invalid sum
+        assert!(!is_valid, "The ZKP verification should fail for an invalid sum");
     }
 
     #[test]
-    fn test_authenticate_failure_tampered_challenge() {
-        let user = User {
-            username: "TestUser".to_string(),
-            password: "SecurePass".to_string(),
-        };
-        let server = Server {
-            salt: "random_salt".to_string(),
-        };
+    fn test_invalid_commitment() {
+        let a: u64 = 10;
+        let b: u64 = 20;
+        let sum = a + b;
 
-        let challenge = server.generate_challenge();
-        let tampered_challenge = "tampered_challenge";
-        let response = hash(&user.password, tampered_challenge); // Simulate tampered challenge
+        // Prover generates the commitment and response
+        let (commit_a, commit_b, r) = prover(a, b);
 
-        assert!(!server.authenticate(&user, &response, &challenge));
+        // Modify the commitment for `a` to simulate an invalid commitment
+        let invalid_commit_a = vec![0u8; commit_a.len()]; // Invalid commitment
+
+        // Verifier checks the invalid commitment
+        let is_valid = verifier(invalid_commit_a, commit_b, a, b, r, sum);
+
+        // Ensure the verification fails with an invalid commitment
+        assert!(!is_valid, "The ZKP verification should fail for an invalid commitment");
+    }
+}
+
+fn main() {
+    // Example numbers a, b, and the sum s
+    let a: u64 = 5;
+    let b: u64 = 7;
+    let sum = a + b;
+
+    // Step 1: Prover generates the commitments and prepares the response
+    let (commit_a, commit_b, r) = prover(a, b);
+
+    // Step 2: Verifier checks the commitments and sum
+    let is_valid = verifier(commit_a, commit_b, a, b, r, sum);
+
+    if is_valid {
+        println!("ZKP Verified: The sum is correct, and the commitment is valid.");
+    } else {
+        println!("ZKP Failed: The commitment or sum is invalid.");
     }
 }
