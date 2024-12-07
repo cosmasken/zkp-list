@@ -1,125 +1,130 @@
-extern crate sha2;
 extern crate rand;
+extern crate ed25519_dalek;
 
-use sha2::{Sha256, Digest};
-use rand::Rng;
+use rand::rngs::OsRng;
+use actix_web::{post, get, web, App, HttpServer, HttpResponse, Responder};
+use serde::{Deserialize, Serialize};
+use bulletproofs::PedersenGens;
+use curve25519_dalek::scalar::Scalar;
 
-// Commitment function: hashes the value with a random blinding factor.
-fn commit(value: u64, r: u64) -> Vec<u8> {
-    let input = format!("{}{}", value, r);
-    let mut hasher = Sha256::new();
-    hasher.update(input.as_bytes());
-    hasher.finalize().to_vec()
+#[derive(Serialize, Deserialize)]
+struct CommitRequest {
+    secret1: u64,
+    secret2: u64,
+    public_key: Option<String>, // Optional public key for proof of knowledge
 }
 
-// Prover function: Generates a commitment for `a`, `b` and sends a challenge response.
-fn prover(a: u64, b: u64) -> (Vec<u8>, Vec<u8>, u64) {
-    // Random blinding factor
-    let r = rand::thread_rng().gen::<u64>();
-
-    // Commitments for a and b
-    let commit_a = commit(a, r);
-    let commit_b = commit(b, r);
-
-    // For simplicity, we reveal `a` along with the blinding factor
-    (commit_a, commit_b, r)
+#[derive(Serialize, Deserialize)]
+struct CommitResponse {
+    commitment1: String,
+    commitment2: String,
+    sum_commitment: String,
+    randomness1: String,
+    randomness2: String,
 }
 
-// Verifier function: Checks if the sum `a + b = s` is correct and commitments are valid.
-fn verifier(commit_a: Vec<u8>, commit_b: Vec<u8>, a: u64, b: u64, r: u64, s: u64) -> bool {
-    // Recommit to a and b using the same blinding factor
-    let commit_a_check = commit(a, r);
-    let commit_b_check = commit(b, r);
-
-    // Verify that the commitments are correct and the sum matches
-    commit_a == commit_a_check && commit_b == commit_b_check && a + b == s
+#[derive(Serialize, Deserialize)]
+struct ProofResponse {
+    challenge: String, // Verifier's challenge
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_commitment() {
-        let value = 42;
-        let r = 12345;
-
-        // Create the commitment for value with blinding factor r
-        let commit1 = commit(value, r);
-        let commit2 = commit(value, r);
-
-        // Ensure that the commitment is consistent
-        assert_eq!(commit1, commit2, "Commitments for the same value and blinding factor should be the same");
-    }
-
-    #[test]
-    fn test_prover_and_verifier() {
-        let a: u64 = 10;
-        let b: u64 = 20;
-        let sum = a + b;
-
-        // Prover generates the commitment and response
-        let (commit_a, commit_b, r) = prover(a, b);
-
-        // Verifier checks the commitments and the sum
-        let is_valid = verifier(commit_a, commit_b, a, b, r, sum);
-
-        // Ensure the verification passes
-        assert!(is_valid, "The ZKP verification failed: the commitments or sum are incorrect");
-    }
-
-    #[test]
-    fn test_invalid_sum() {
-        let a: u64 = 10;
-        let b: u64 = 20;
-        let sum = a + b;
-
-        // Prover generates the commitment and response
-        let (commit_a, commit_b, r) = prover(a, b);
-
-        // Verifier checks the commitments and an invalid sum
-        let invalid_sum = sum + 1;
-        let is_valid = verifier(commit_a, commit_b, a, b, r, invalid_sum);
-
-        // Ensure the verification fails with an invalid sum
-        assert!(!is_valid, "The ZKP verification should fail for an invalid sum");
-    }
-
-    #[test]
-    fn test_invalid_commitment() {
-        let a: u64 = 10;
-        let b: u64 = 20;
-        let sum = a + b;
-
-        // Prover generates the commitment and response
-        let (commit_a, commit_b, r) = prover(a, b);
-
-        // Modify the commitment for `a` to simulate an invalid commitment
-        let invalid_commit_a = vec![0u8; commit_a.len()]; // Invalid commitment
-
-        // Verifier checks the invalid commitment
-        let is_valid = verifier(invalid_commit_a, commit_b, a, b, r, sum);
-
-        // Ensure the verification fails with an invalid commitment
-        assert!(!is_valid, "The ZKP verification should fail for an invalid commitment");
-    }
+#[derive(Serialize, Deserialize)]
+struct ProofVerifyRequest {
+    response: String,       // Prover's response
+    challenge: String,      // Verifier's challenge
+    public_key: String,     // Prover's public key
 }
 
-fn main() {
-    // Example numbers a, b, and the sum s
-    let a: u64 = 5;
-    let b: u64 = 7;
-    let sum = a + b;
+#[get("/")]
+async fn index() -> impl Responder {
+    HttpResponse::Ok()
+        .content_type("text/html")
+        .body(include_str!("../static/index.html"))
+}
 
-    // Step 1: Prover generates the commitments and prepares the response
-    let (commit_a, commit_b, r) = prover(a, b);
+#[post("/commit")]
+async fn commit(req: web::Json<CommitRequest>) -> impl Responder {
+    let mut rng = OsRng;
 
-    // Step 2: Verifier checks the commitments and sum
-    let is_valid = verifier(commit_a, commit_b, a, b, r, sum);
+    // Generate Pedersen Generators
+    let pedersen_gens = PedersenGens::default();
 
-    if is_valid {
-        println!("ZKP Verified: The sum is correct, and the commitment is valid.");
+    // Convert secrets to Scalars
+    let secret1 = Scalar::from(req.secret1);
+    let secret2 = Scalar::from(req.secret2);
+
+    // Generate random blinding factors
+    let randomness1 = Scalar::random(&mut rng);
+    let randomness2 = Scalar::random(&mut rng);
+
+    // Create commitments
+    let commitment1 = pedersen_gens.commit(secret1, randomness1);
+    let commitment2 = pedersen_gens.commit(secret2, randomness2);
+
+    // Sum commitments
+    let sum = req.secret1 + req.secret2;
+    let sum_commitment = pedersen_gens.commit(Scalar::from(sum), randomness1 + randomness2);
+
+    HttpResponse::Ok().json(CommitResponse {
+        commitment1: hex::encode(commitment1.compress().to_bytes()),
+        commitment2: hex::encode(commitment2.compress().to_bytes()),
+        sum_commitment: hex::encode(sum_commitment.compress().to_bytes()),
+        randomness1: hex::encode(randomness1.to_bytes()),
+        randomness2: hex::encode(randomness2.to_bytes()),
+    })
+}
+
+#[post("/challenge")]
+async fn generate_challenge(req: web::Json<CommitRequest>) -> impl Responder {
+    use rand::Rng;
+    let mut rng = OsRng;
+
+    if let Some(public_key) = &req.public_key {
+        let challenge: u64 = rng.gen_range(1..1_000_000); // Generate a random challenge
+        HttpResponse::Ok().json(ProofResponse {
+            challenge: challenge.to_string(),
+        })
     } else {
-        println!("ZKP Failed: The commitment or sum is invalid.");
+        HttpResponse::BadRequest().body("Public key required for proof of knowledge")
     }
+}
+
+#[post("/verify_proof")]
+async fn verify_proof(req: web::Json<ProofVerifyRequest>) -> impl Responder {
+    let public_key_bytes = match hex::decode(&req.public_key) {
+        Ok(bytes) => bytes,
+        Err(_) => return HttpResponse::BadRequest().body("Invalid public key encoding."),
+    };
+
+    let response: u64 = match req.response.parse() {
+        Ok(value) => value,
+        Err(_) => return HttpResponse::BadRequest().body("Invalid response."),
+    };
+
+    let challenge: u64 = match req.challenge.parse() {
+        Ok(value) => value,
+        Err(_) => return HttpResponse::BadRequest().body("Invalid challenge."),
+    };
+
+    // Example: Verify response
+    // Adjust this logic to suit the actual proof scheme.
+    if response == challenge + public_key_bytes[0] as u64 { // Replace with actual verification logic
+        HttpResponse::Ok().body("Proof verified successfully!")
+    } else {
+        HttpResponse::BadRequest().body("Verification failed.")
+    }
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| {
+        App::new()
+            .service(index)
+            .service(commit)
+            .service(generate_challenge)
+            .service(verify_proof)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zero-Knowledge Proof Demo</title>
+    <script>
+        async function generateCommitments() {
+            const secret1 = document.getElementById("secret1").value;
+            const secret2 = document.getElementById("secret2").value;
+
+            const response = await fetch("/commit", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ secret1: parseInt(secret1), secret2: parseInt(secret2) }),
+            });
+            const data = await response.json();
+
+            // Store the secrets and sum for verification
+            data.secret1 = parseInt(secret1);
+            data.secret2 = parseInt(secret2);
+            data.sum = parseInt(secret1) + parseInt(secret2);
+
+            // Display the commitments
+            document.getElementById("commitments").textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function generateProof() {
+            const publicKey = document.getElementById("publicKey").value;
+
+            const response = await fetch("/challenge", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ public_key: publicKey }),
+            });
+
+            const data = await response.json();
+            document.getElementById("challenge").textContent = `Challenge: ${data.challenge}`;
+        }
+
+        async function verifyProof() {
+            const publicKey = document.getElementById("publicKey").value;
+            const challenge = document.getElementById("challenge").textContent.split(": ")[1];
+            const response = prompt("Enter your response to the challenge");
+
+            const verifyResponse = await fetch("/verify_proof", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    public_key: publicKey,
+                    challenge: challenge,
+                    response: response,
+                }),
+            });
+
+            const result = await verifyResponse.text();
+            document.getElementById("verification").textContent = result;
+        }
+    </script>
+</head>
+<body>
+    <h1>Zero-Knowledge Proof Demo</h1>
+
+    <h2>Generate Commitments</h2>
+    <label for="secret1">Secret 1:</label>
+    <input type="number" id="secret1" />
+    <label for="secret2">Secret 2:</label>
+    <input type="number" id="secret2" />
+    <button onclick="generateCommitments()">Generate</button>
+
+    <pre id="commitments"></pre>
+
+    <h2>Generate Proof</h2>
+    <label for="publicKey">Public Key:</label>
+    <input type="text" id="publicKey" />
+    <button onclick="generateProof()">Generate Challenge</button>
+
+    <pre id="challenge"></pre>
+
+    <h2>Verify Proof</h2>
+    <button onclick="verifyProof()">Verify</button>
+
+    <pre id="verification"></pre>
+</body>
+</html>
