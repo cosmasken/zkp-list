@@ -1,83 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Zero-Knowledge Proof Demo</title>
-    <script>
-        async function generateCommitments() {
-            const secret1 = document.getElementById("secret1").value;
-            const secret2 = document.getElementById("secret2").value;
-
-            const response = await fetch("/commit", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ secret1: parseInt(secret1), secret2: parseInt(secret2) }),
-            });
-            const data = await response.json();
-
-            // Store the secrets and sum for verification
-            data.secret1 = parseInt(secret1);
-            data.secret2 = parseInt(secret2);
-            data.sum = parseInt(secret1) + parseInt(secret2);
-
-            // Display the commitments
-            document.getElementById("commitments").textContent = JSON.stringify(data, null, 2);
-        }
-
-        async function generateProof() {
-            const publicKey = document.getElementById("publicKey").value;
-
-            const response = await fetch("/challenge", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ public_key: publicKey }),
-            });
-
-            const data = await response.json();
-            document.getElementById("challenge").textContent = `Challenge: ${data.challenge}`;
-        }
-
-        async function verifyProof() {
-            const publicKey = document.getElementById("publicKey").value;
-            const challenge = document.getElementById("challenge").textContent.split(": ")[1];
-            const response = prompt("Enter your response to the challenge");
-
-            const verifyResponse = await fetch("/verify_proof", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    public_key: publicKey,
-                    challenge: challenge,
-                    response: response,
-                }),
-            });
-
-            const result = await verifyResponse.text();
-            document.getElementById("verification").textContent = result;
-        }
-    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>zk-SNARKs Web Interface</title>
 </head>
 <body>
-    <h1>Zero-Knowledge Proof Demo</h1>
+    <h1>Generate and Verify zk-SNARK Proof</h1>
+    
+    <div>
+        <h2>Generate Proof</h2>
+        <label for="xValue">Enter x:</label>
+        <input type="number" id="xValue" name="xValue" required>
+        <button onclick="generateProof()">Generate Proof</button>
+    </div>
 
-    <h2>Generate Commitments</h2>
-    <label for="secret1">Secret 1:</label>
-    <input type="number" id="secret1" />
-    <label for="secret2">Secret 2:</label>
-    <input type="number" id="secret2" />
-    <button onclick="generateCommitments()">Generate</button>
+    <div id="proofResult"></div>
 
-    <pre id="commitments"></pre>
+    <div>
+        <h2>Verify Proof</h2>
+        <button onclick="verifyProof()">Verify Proof</button>
+    </div>
 
-    <h2>Generate Proof</h2>
-    <label for="publicKey">Public Key:</label>
-    <input type="text" id="publicKey" />
-    <button onclick="generateProof()">Generate Challenge</button>
+    <script>
+        function generateProof() {
+            const xValue = document.getElementById('xValue').value;
+            
+            fetch('http://127.0.0.1:8080/generate_proof', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({x: xValue}),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('proofResult').innerHTML = `Proof: ${data.proof}<br>Message: ${data.message}`;
+            });
+        }
 
-    <pre id="challenge"></pre>
+        function verifyProof() {
+            const xValue = document.getElementById('xValue').value;
 
-    <h2>Verify Proof</h2>
-    <button onclick="verifyProof()">Verify</button>
-
-    <pre id="verification"></pre>
+            fetch('http://127.0.0.1:8080/verify_proof', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({x: xValue}),
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+            });
+        }
+    </script>
 </body>
 </html>
