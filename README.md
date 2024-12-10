@@ -1,85 +1,34 @@
-# Zero-Knowledge Proof Example
-
-This project demonstrates a simple implementation of a Zero-Knowledge Proof (ZKP) concept using Rust. It simulates a user and a server exchanging data for authentication without directly sharing sensitive information.
-
-## Features
-- Hashing using SHA256
-- Random challenge generation
-- Authentication simulation with deterministic checks
-
----
-
-## Prerequisites
-
-- **Rust**: Ensure Rust is installed on your system. If not, follow the instructions below.
-
-### Install Rust
-
-1. Visit the [official Rust installation page](https://www.rust-lang.org/tools/install).
-2. Follow the installation steps for your platform:
-   - **Linux/macOS**:
-     ```bash
-     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-     ```
-   - **Windows**: Download and run the `rustup-init.exe` installer from the website.
-
-3. After installation, verify Rust is installed:
-   ```bash
-   rustc --version
-
-
-markdown
-Copy code
-# Zero-Knowledge Proof Example
-
-This project demonstrates a simple implementation of a Zero-Knowledge Proof (ZKP) concept using Rust. It simulates a user and a server exchanging data for authentication without directly sharing sensitive information.
-
-## Features
-- Hashing using SHA256
-- Random challenge generation
-- Authentication simulation with deterministic checks
-
----
-
-## Prerequisites
-
-- **Rust**: Ensure Rust is installed on your system. If not, follow the instructions below.
-
-
-markdown
-Copy code
-# Zero-Knowledge Proof Example
-
-This project demonstrates a simple implementation of a Zero-Knowledge Proof (ZKP) concept using Rust. It simulates a user and a server exchanging data for authentication without directly sharing sensitive information.
-
-## Features
-- Hashing using SHA256
-- Random challenge generation
-- Authentication simulation with deterministic checks
-
----
-
-## Prerequisites
-
-- **Rust**: Ensure Rust is installed on your system. If not, follow the instructions below.
-
-### Getting started
-
-1. Donwload Repo
-2. Build:
-     ```bash
-     cargo build
-     ```
-2. Run:
-     ```bash
-     cargo run
-     ```
-
 ### How It Works
- - The server generates a random salt and challenge.
 
- - The user provides a password and computes a response (hash of the password and challenge).
+- **Generate Proof**: The frontend allows users to input a value `x` and generate a ZKP for the equation `x^3 + x + 5 = 35`. The backend uses the **bellman** library to generate the proof for this equation.
+  
+- **Verify Proof**: After generating a proof, users can enter the expected output (`35` in this case) to verify the proof.
 
- - The server validates the user's response against its own computation.
+The backend serves as the API for proof generation and verification, while the frontend provides an interface for non-technical users to interact with the system.
 
- - If the responses match, authentication succeeds.
+### API Endpoints
+
+- **POST `/generate-proof`**: 
+  - Request Body: `{ "x": "3" }` (value of `x`).
+  - Response: Returns the generated proof for the equation.
+  
+- **POST `/verify-proof`**: 
+  - Request Body: `{ "proof": "generated-proof-string", "output": "35" }`.
+  - Response: Returns whether the proof is valid or not.
+
+### Technologies Used
+
+- **Backend**: Actix Web, Rust, bellman (for Zero-Knowledge Proofs)
+- **Frontend**: React, JavaScript, HTML, CSS
+- **Zero-Knowledge Proof**: Using the **bellman** library for zk-SNARK proof generation and verification.
+
+### License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+### Credits
+
+- **bellman** - The library used for Zero-Knowledge Proofs.
+- **Actix** - Rust web framework for backend API.
