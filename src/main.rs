@@ -1,21 +1,20 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-extern crate bellman;
-extern crate pairing;
-extern crate rand;
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
 use pairing::{Engine, Field, PrimeField};
 use std::env;
 
+use pairing::bls12_381::{Bls12, Fr};
+use rand::thread_rng;
+use bellman::groth16::{
+        create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof, Proof,
+    };
+use std::str::FromStr;
+
 mod cube; 
 
 fn main(){
-    use pairing::bls12_381::{Bls12, Fr};
-    use rand::thread_rng;
-    use bellman::groth16::{
-        create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof, Proof,
-    };
-    use std::str::FromStr;
+    
 
     println!("Prove that I know x such that x^3 + x + 5 == 35.");
 
