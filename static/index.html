@@ -23,37 +23,7 @@
     </div>
 
     <script>
-        function generateProof() {
-            const xValue = document.getElementById('xValue').value;
-            
-            fetch('http://127.0.0.1:8080/generate_proof', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({x: xValue}),
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('proofResult').innerHTML = `Proof: ${data.proof}<br>Message: ${data.message}`;
-            });
-        }
-
-        function verifyProof() {
-            const xValue = document.getElementById('xValue').value;
-
-            fetch('http://127.0.0.1:8080/verify_proof', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({x: xValue}),
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-            });
-        }
+    
     </script>
 </body>
 </html>
