@@ -14,18 +14,6 @@ use std::str::FromStr;
 mod cube; 
 
 fn main(){
-    
-
-    println!("Prove that I know x such that x^3 + x + 5 == 35.");
-
-     // Get command line arguments
-     let args: Vec<String> = env::args().collect();
-
-    // Ensure user provided at least one argument
-    if args.len() < 2 {
-        println!("Usage: <program_name> <x_value>");
-        return;
-    }
 
     println!("Prove that I know x such that x^3 + x + 5 == 35.");
     
